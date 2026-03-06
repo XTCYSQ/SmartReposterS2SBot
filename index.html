@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartReposterS2SBot — Умный Репостер для Telegram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --bg2: #090d1a;
+    --surface: #0e1525;
+    --surface2: #131c30;
+    --border: rgba(255,255,255,0.07);
+    --cyan: #00e5ff;
+    --cyan2: #00b8d4;
+    --green: #00ff88;
+    --purple: #7c3aed;
+    --text: #e8edf5;
+    --muted: #6b7fa3;
+    --accent: #ff6b35;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.6;
+  }
+
+  /* ── GRID BG ── */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── GLOW ORBS ── */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+    animation: pulse 8s ease-in-out infinite;
+  }
+  .orb-1 { width: 600px; height: 600px; background: rgba(0,229,255,0.06); top: -200px; right: -100px; }
+  .orb-2 { width: 500px; height: 500px; background: rgba(124,58,237,0.07); bottom: 100px; left: -150px; animation-delay: -4s; }
+  .orb-3 { width: 300px; height: 300px; background: rgba(0,255,136,0.05); top: 50%; left: 40%; animation-delay: -2s; }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.7; }
+  }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 0;
+    background: rgba(5,8,16,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: var(--surface2);
+  }
+  .logo-icon img {
+    width: 42px; height: 42px;
+    object-fit: cover;
+    display: block;
+    border-radius: 10px;
+  }
+  .logo-text { display: flex; align-items: baseline; gap: 0; color: var(--text); }
+  .logo-text span { color: var(--cyan); }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--cyan);
+    color: var(--bg);
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .nav-cta:hover { background: #33eaff; transform: translateY(-1px); box-shadow: 0 8px 30px rgba(0,229,255,0.3); }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 160px 0 100px;
+    text-align: center;
+    position: relative;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.2);
+    border-radius: 100px;
+    padding: 8px 18px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cyan);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    animation: fadeInDown 0.8s ease both;
+  }
+  .hero-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--cyan);
+    border-radius: 50%;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  h1 {
+    font-size: clamp(42px, 7vw, 80px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+    animation: fadeInUp 0.8s ease 0.1s both;
+  }
+  h1 .line2 { color: var(--cyan); display: block; }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 560px;
+    margin: 0 auto 48px;
+    line-height: 1.7;
+    font-weight: 400;
+    animation: fadeInUp 0.8s ease 0.2s both;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    animation: fadeInUp 0.8s ease 0.3s both;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--cyan), var(--cyan2));
+    color: var(--bg);
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.25s;
+    box-shadow: 0 0 40px rgba(0,229,255,0.2);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 50px rgba(0,229,255,0.4); }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    color: var(--text);
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    transition: all 0.25s;
+  }
+  .btn-secondary:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+
+  /* ── STATS ── */
+  .stats {
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    margin-top: 80px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--surface);
+    animation: fadeInUp 0.8s ease 0.4s both;
+  }
+  .stat-item {
+    flex: 1;
+    padding: 28px 24px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--cyan);
+    letter-spacing: -1px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+  /* ── SECTION TITLES ── */
+  .section { padding: 100px 0; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .section-title {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+    font-weight: 400;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+    background: var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .flow-step {
+    background: var(--surface);
+    padding: 40px 32px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .flow-step:hover { background: var(--surface2); }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    opacity: 0.7;
+  }
+  .step-icon {
+    font-size: 36px;
+    margin-bottom: 20px;
+    display: block;
+  }
+  .flow-step h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.3px;
+  }
+  .flow-step p { font-size: 14px; color: var(--muted); line-height: 1.7; font-weight: 400; }
+
+  /* ── FEATURES ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+    background: var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--surface);
+    padding: 36px;
+    transition: background 0.2s;
+  }
+  .feature-card:hover { background: var(--surface2); }
+  .feature-card.wide { grid-column: 1 / -1; }
+  .feat-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+  .feature-card h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+  .feature-card p { font-size: 14px; color: var(--muted); line-height: 1.7; font-weight: 400; }
+  .feature-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .tag {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--cyan);
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.12);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 400;
+  }
+
+  /* ── PRICING ── */
+  #pricing { padding: 100px 0; }
+  .pricing-header { text-align: center; margin-bottom: 60px; }
+
+  .pricing-toggle {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 4px;
+    gap: 4px;
+    margin-top: 32px;
+  }
+  .toggle-btn {
+    padding: 10px 24px;
+    border-radius: 100px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .toggle-btn.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+  .toggle-btn .badge {
+    font-size: 10px;
+    background: var(--green);
+    color: var(--bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 700;
+  }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    background: var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  .plan-card {
+    background: var(--surface);
+    padding: 40px 28px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .plan-card:hover { background: var(--surface2); }
+  .plan-card.featured {
+    background: linear-gradient(160deg, #0d1e3a 0%, #0a1628 100%);
+    border: none;
+  }
+  .plan-card.featured::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .plan-popular {
+    position: absolute;
+    top: -1px; left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, var(--cyan), var(--cyan2));
+    color: var(--bg);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 5px 16px;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .plan-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .plan-card.featured .plan-name { color: var(--cyan); }
+
+  .plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .price-currency { font-size: 22px; font-weight: 700; color: var(--muted); }
+  .price-amount {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 1;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .price-period { font-size: 14px; color: var(--muted); font-weight: 400; }
+
+  .price-old {
+    font-size: 14px;
+    color: var(--muted);
+    text-decoration: line-through;
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.6;
+  }
+  .price-save {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green);
+    background: rgba(0,255,136,0.08);
+    border: 1px solid rgba(0,255,136,0.2);
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .plan-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 28px;
+    font-weight: 400;
+    min-height: 40px;
+  }
+
+  .plan-divider { height: 1px; background: var(--border); margin-bottom: 24px; }
+
+  .plan-features { list-style: none; margin-bottom: 32px; }
+  .plan-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+  .plan-features li::before {
+    content: '✓';
+    color: var(--cyan);
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .plan-card.featured .plan-features li { color: #a8c0e0; }
+
+  .plan-btn {
+    display: block;
+    text-align: center;
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .plan-btn-outline {
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .plan-btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+  .plan-btn-solid {
+    background: linear-gradient(135deg, var(--cyan), var(--cyan2));
+    color: var(--bg);
+    box-shadow: 0 4px 30px rgba(0,229,255,0.25);
+  }
+  .plan-btn-solid:hover { box-shadow: 0 8px 40px rgba(0,229,255,0.45); transform: translateY(-1px); }
+
+  /* ── REFERRAL BANNER ── */
+  .referral-banner {
+    margin-top: 24px;
+    background: linear-gradient(135deg, rgba(255,107,53,0.08), rgba(255,107,53,0.04));
+    border: 1px solid rgba(255,107,53,0.2);
+    border-radius: 16px;
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .ref-icon { font-size: 48px; flex-shrink: 0; }
+  .ref-content h3 {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .ref-content h3 span { color: var(--accent); }
+  .ref-content p { font-size: 15px; color: var(--muted); line-height: 1.6; font-weight: 400; }
+  .ref-price {
+    flex-shrink: 0;
+    text-align: center;
+    background: rgba(255,107,53,0.08);
+    border: 1px solid rgba(255,107,53,0.15);
+    border-radius: 12px;
+    padding: 20px 28px;
+  }
+  .ref-price .big { font-size: 40px; font-weight: 800; color: var(--accent); font-family: 'JetBrains Mono', monospace; letter-spacing: -2px; }
+  .ref-price .small { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ── FAQ ── */
+  .faq-list { margin-top: 48px; }
+  .faq-item {
+    border-bottom: 1px solid var(--border);
+    padding: 28px 0;
+  }
+  .faq-q {
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    user-select: none;
+    letter-spacing: -0.3px;
+  }
+  .faq-q::after {
+    content: '+';
+    color: var(--cyan);
+    font-size: 22px;
+    font-weight: 300;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .faq-item.open .faq-q::after { transform: rotate(45deg); }
+  .faq-a {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.8;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    font-weight: 400;
+  }
+  .faq-item.open .faq-a { max-height: 300px; padding-top: 16px; }
+
+  /* ── CTA ── */
+  .cta-section {
+    padding: 120px 0;
+    text-align: center;
+    position: relative;
+  }
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(0,229,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cta-section h2 {
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 20px;
+  }
+  .cta-section h2 span { color: var(--cyan); }
+  .cta-section p {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 500px;
+    margin: 0 auto 40px;
+    line-height: 1.7;
+    font-weight: 400;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .footer-copy { font-size: 14px; color: var(--muted); font-weight: 400; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { font-size: 14px; color: var(--muted); text-decoration: none; transition: color 0.2s; font-weight: 400; }
+  .footer-links a:hover { color: var(--text); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+    .flow { grid-template-columns: 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .feature-card.wide { grid-column: auto; }
+    .nav-links { display: none; }
+    .referral-banner { flex-direction: column; text-align: center; }
+    .ref-price { width: 100%; }
+  }
+  @media (max-width: 600px) {
+    .pricing-grid { grid-template-columns: 1fr; }
+    .stats { flex-direction: column; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .stat-item:last-child { border-bottom: none; }
+    h1 { letter-spacing: -1px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo">
+      <div class="logo-icon"><img src="logo.png" alt="SmartReposterS2SBot"></div>
+      <span class="logo-text">SmartReposter<span>S2SBot</span></span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#how">Как работает</a></li>
+      <li><a href="#features">Функции</a></li>
+      <li><a href="#pricing">Цены</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+    <a href="#pricing" class="nav-cta">Начать →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">Telegram Автоматизация</div>
+    <h1>
+      Умный репостинг
+      <span class="line2">для Telegram</span>
+    </h1>
+    <p class="hero-sub">
+      Читай посты из любых каналов, перефразируй их через ИИ, управляй публикацией — и автоматически публикуй в свои каналы. Без ручного труда.
+    </p>
+    <div class="hero-actions">
+      <a href="#pricing" class="btn-primary">
+        <span>🚀</span> Попробовать за $10/мес
+      </a>
+      <a href="#how" class="btn-secondary">
+        <span>▶</span> Как это работает
+      </a>
+    </div>
+
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Источников</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">AI</div>
+        <div class="stat-label">Gemini рерайт</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">24/7</div>
+        <div class="stat-label">Мониторинг</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">$10</div>
+        <div class="stat-label">В месяц</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">// принцип работы</div>
+      <h2 class="section-title">Три шага — и контент<br>публикуется сам</h2>
+      <p class="section-sub">Настрой один раз и забудь. Бот работает за тебя круглосуточно.</p>
+    </div>
+    <div class="flow reveal">
+      <div class="flow-step">
+        <div class="step-num">01 — источник</div>
+        <span class="step-icon">📡</span>
+        <h3>Подключи источники</h3>
+        <p>Укажи любые Telegram-каналы или супергруппы. Бот начнёт читать их в режиме реального времени через MTProto и не пропустит ни одного поста.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">02 — обработка</div>
+        <span class="step-icon">🤖</span>
+        <h3>ИИ обрабатывает текст</h3>
+        <p>Google Gemini перефразирует пост под стиль твоего канала: убирает мусор, добавляет нужные акценты, делает текст уникальным и «своим».</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">03 — публикация</div>
+        <span class="step-icon">✈️</span>
+        <h3>Публикуй в свои каналы</h3>
+        <p>Утверди или отклони в один клик. Пост уходит во все целевые каналы сразу — с медиа, подписями и форматированием.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">// возможности</div>
+      <h2 class="section-title">Всё, что нужно для<br>профессионального репостинга</h2>
+    </div>
+    <div class="features-grid reveal">
+      <div class="feature-card">
+        <div class="feat-icon">🤖</div>
+        <h3>Gemini AI рерайт</h3>
+        <p>Умное перефразирование через Google Gemini. Настраиваемые промпты под каждый канал. Контроль уникальности, ротация ключей, автоповтор при 429.</p>
+        <div class="feature-tags">
+          <span class="tag">gemini-pro</span>
+          <span class="tag">кастом-промпт</span>
+          <span class="tag">авто-ретрай</span>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🛡️</div>
+        <h3>Модерация и контроль</h3>
+        <p>Каждый пост проходит через тебя: одобри, отклони, отредактируй или перегенерируй прямо в чате с ботом. Никаких неожиданных публикаций.</p>
+        <div class="feature-tags">
+          <span class="tag">approve / reject</span>
+          <span class="tag">редактор</span>
+          <span class="tag">черновики</span>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">📸</div>
+        <h3>Медиа & Альбомы</h3>
+        <p>Полная поддержка фото, видео, документов и альбомов. Корректная сборка grouped_id, автоматическое разделение длинного текста на caption + remainder.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">💧</div>
+        <h3>Водяные знаки</h3>
+        <p>Автоматическое наложение водяного знака на изображения и видео. Гибкая настройка по каждому таргет-каналу. Твой бренд — на каждом посте.</p>
+      </div>
+      <div class="feature-card wide">
+        <div class="feat-icon">⚙️</div>
+        <h3>Гибкое управление и расписание</h3>
+        <p>Несколько источников и каналов одновременно. Черный список слов, задержки публикации, polling fallback, защита от дублей через last_seen, пропуск бэклога командой /skipbacklog — всё продумано до мелочей.</p>
+        <div class="feature-tags">
+          <span class="tag">/watch</span>
+          <span class="tag">/skipbacklog</span>
+          <span class="tag">/autodelay</span>
+          <span class="tag">/blacklist</span>
+          <span class="tag">/fetch</span>
+          <span class="tag">multi-target</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="container">
+    <div class="pricing-header reveal">
+      <div class="section-label">// тарифы</div>
+      <h2 class="section-title">Простые и честные цены</h2>
+      <p style="color: var(--muted); font-size: 16px; margin-top: 12px; font-weight: 400;">Один бот — все функции. Никаких скрытых платежей.</p>
+    </div>
+
+    <div class="pricing-grid reveal">
+
+      <!-- MONTHLY -->
+      <div class="plan-card">
+        <div class="plan-name">Месяц</div>
+        <div class="plan-price">
+          <span class="price-currency">$</span>
+          <span class="price-amount">10</span>
+        </div>
+        <div class="price-period">в месяц</div>
+        <div style="height:28px"></div>
+        <p class="plan-desc">Попробуй без обязательств. Отмени в любой момент.</p>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Все функции бота</li>
+          <li>Неограниченные источники</li>
+          <li>Несколько таргет-каналов</li>
+          <li>AI рерайт через Gemini</li>
+          <li>Поддержка медиа и альбомов</li>
+        </ul>
+        <a href="#contact" class="plan-btn plan-btn-outline">Начать →</a>
+      </div>
+
+      <!-- 6 MONTHS -->
+      <div class="plan-card">
+        <div class="plan-name">6 месяцев</div>
+        <div class="price-old">$60</div>
+        <div class="plan-price">
+          <span class="price-currency">$</span>
+          <span class="price-amount">54</span>
+        </div>
+        <div class="price-period">/ 6 месяцев · $9/мес</div>
+        <div class="price-save">ЭКОНОМИЯ 10%</div>
+        <p class="plan-desc">Для тех, кто уже распробовал и готов к работе.</p>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Все функции бота</li>
+          <li>Неограниченные источники</li>
+          <li>Несколько таргет-каналов</li>
+          <li>AI рерайт через Gemini</li>
+          <li>Поддержка медиа и альбомов</li>
+        </ul>
+        <a href="#contact" class="plan-btn plan-btn-outline">Выбрать →</a>
+      </div>
+
+      <!-- ANNUAL — FEATURED -->
+      <div class="plan-card featured">
+        <div class="plan-popular">Популярный</div>
+        <div class="plan-name">Год</div>
+        <div class="price-old">$120</div>
+        <div class="plan-price">
+          <span class="price-currency">$</span>
+          <span class="price-amount">84</span>
+        </div>
+        <div class="price-period">/ год · $7/мес</div>
+        <div class="price-save">ЭКОНОМИЯ 30%</div>
+        <p class="plan-desc" style="color: #a8c0e0;">Лучший выбор — максимальная выгода при ежегодной оплате.</p>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Все функции бота</li>
+          <li>Неограниченные источники</li>
+          <li>Несколько таргет-каналов</li>
+          <li>AI рерайт через Gemini</li>
+          <li>Поддержка медиа и альбомов</li>
+        </ul>
+        <a href="#contact" class="plan-btn plan-btn-solid">Лучший выбор →</a>
+      </div>
+
+      <!-- LIFETIME -->
+      <div class="plan-card">
+        <div class="plan-name">Навсегда</div>
+        <div class="plan-price">
+          <span class="price-currency">$</span>
+          <span class="price-amount">100</span>
+        </div>
+        <div class="price-period">единоразово</div>
+        <div style="height: 28px"></div>
+        <p class="plan-desc">Один платёж — вечный доступ. Платишь раз и экономишь годами.</p>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Все функции навсегда</li>
+          <li>Все будущие обновления</li>
+          <li>Приоритетная поддержка</li>
+          <li>AI рерайт через Gemini</li>
+          <li>Без ежемесячных платежей</li>
+        </ul>
+        <a href="#contact" class="plan-btn plan-btn-outline">Купить навсегда →</a>
+      </div>
+
+    </div>
+
+    <!-- REFERRAL BANNER -->
+    <div class="referral-banner reveal">
+      <div class="ref-icon">🤝</div>
+      <div class="ref-content">
+        <h3>Приведи друга — платите <span>по $6/мес</span> оба</h3>
+        <p>Поделись своей реферальной ссылкой. Как только друг оформит подписку — ваш тариф автоматически снижается до <strong>$6 в месяц</strong> для обоих. Приводи больше — плати меньше.</p>
+      </div>
+      <div class="ref-price">
+        <div class="big">$6</div>
+        <div class="small">в месяц с другом</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="container" style="max-width: 720px;">
+    <div class="reveal">
+      <div class="section-label">// вопросы</div>
+      <h2 class="section-title">Часто задают</h2>
+    </div>
+    <div class="faq-list reveal">
+
+      <div class="faq-item">
+        <div class="faq-q">Нужен ли собственный Telegram-аккаунт для чтения источников?</div>
+        <div class="faq-a">Не обязательно. По умолчанию бот работает в Server-Reader режиме — чтение источников идёт через серверный аккаунт, который уже настроен с нашей стороны. Всё работает «из коробки».<br><br>Тем не менее, мы рекомендуем подключить свой личный Telegram-аккаунт. Главное преимущество: ты сможешь добавлять любые каналы и группы, в которых уже состоишь, самостоятельно — без ожидания, пока администратор вручную одобрит каждый источник. Свой аккаунт даёт полную свободу в выборе источников и значительно ускоряет настройку.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Как работает AI-перефразирование? Нужен отдельный ключ Gemini?</div>
+        <div class="faq-a">Да, для работы Gemini потребуется API-ключ Google. Его легко получить бесплатно в Google AI Studio. Бот поддерживает несколько ключей с автоматической ротацией при достижении лимитов.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Можно ли публиковать в несколько каналов одновременно?</div>
+        <div class="faq-a">Да, поддерживается неограниченное количество target-каналов. Каждый таргет можно включить или выключить отдельно, настроить свой промпт и стиль публикации.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Как работает реферальная программа?</div>
+        <div class="faq-a">Ты получаешь персональную ссылку. Когда по ней регистрируется и оформляет подписку друг — оба платите по $6 в месяц вместо $10. Скидка действует всё время, пока оба активны.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Lifetime — это действительно навсегда?</div>
+        <div class="faq-a">Да. Один платёж $100 — и ты получаешь доступ ко всем текущим и будущим функциям бота без каких-либо ежемесячных платежей.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="reveal">
+      <h2>Готов автоматизировать<br><span>свои Telegram-каналы?</span></h2>
+      <p>Начни за 10 минут. Настрой источники, добавь таргеты — и пусть бот работает за тебя.</p>
+      <a href="#pricing" class="btn-primary" style="display: inline-flex; margin: 0 auto;">
+        <span>⚡</span> Начать прямо сейчас
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" style="padding: 80px 0;">
+  <div class="container" style="max-width: 640px;">
+    <div class="reveal" style="text-align: center; margin-bottom: 48px;">
+      <div class="section-label">// связаться</div>
+      <h2 class="section-title">Готов начать?<br>Напиши мне</h2>
+      <p style="color: var(--muted); font-size: 16px; margin-top: 14px; font-weight: 400; line-height: 1.7;">Выбери удобный тариф и напиши в любой из мессенджеров — отвечу быстро, помогу с подключением и настройкой.</p>
+    </div>
+    <div class="reveal" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+
+      <!-- WhatsApp -->
+      <a href="https://wa.me/77072181509" target="_blank" style="text-decoration: none;">
+        <div style="
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 32px 28px;
+          text-align: center;
+          transition: all 0.25s;
+          cursor: pointer;
+        " onmouseover="this.style.borderColor='#25D366'; this.style.background='rgba(37,211,102,0.05)'; this.style.transform='translateY(-3px)'"
+           onmouseout="this.style.borderColor='var(--border)'; this.style.background='var(--surface)'; this.style.transform='none'">
+          <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
+          <div style="font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #25D366; font-family: 'JetBrains Mono', monospace; margin-bottom: 10px;">WhatsApp</div>
+          <div style="font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.3px;">+7 707 218 15 09</div>
+          <div style="font-size: 13px; color: var(--muted); margin-top: 6px; font-weight: 400;">Написать в WhatsApp →</div>
+        </div>
+      </a>
+
+      <!-- Telegram -->
+      <a href="https://t.me/Roscers" target="_blank" style="text-decoration: none;">
+        <div style="
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 32px 28px;
+          text-align: center;
+          transition: all 0.25s;
+          cursor: pointer;
+        " onmouseover="this.style.borderColor='#2AABEE'; this.style.background='rgba(42,171,238,0.05)'; this.style.transform='translateY(-3px)'"
+           onmouseout="this.style.borderColor='var(--border)'; this.style.background='var(--surface)'; this.style.transform='none'">
+          <div style="font-size: 48px; margin-bottom: 16px;">✈️</div>
+          <div style="font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #2AABEE; font-family: 'JetBrains Mono', monospace; margin-bottom: 10px;">Telegram</div>
+          <div style="font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.3px;">@Roscers</div>
+          <div style="font-size: 13px; color: var(--muted); margin-top: 6px; font-weight: 400;">Написать в Telegram →</div>
+        </div>
+      </a>
+
+    </div>
+    <div class="reveal" style="margin-top: 20px; background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.1); border-radius: 12px; padding: 18px 24px; text-align: center;">
+      <span style="font-size: 14px; color: var(--muted); font-weight: 400;">⚡ Обычно отвечаю в течение нескольких часов. Укажи выбранный тариф — подключим быстро.</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-copy">© 2026 SmartReposterS2SBot. Все права защищены.</div>
+      <div class="footer-links">
+        <a href="https://t.me/Roscers" target="_blank">Telegram</a>
+        <a href="https://wa.me/77072181509" target="_blank">WhatsApp</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(r => observer.observe(r));
+
+  // FAQ accordion
+  document.querySelectorAll('.faq-q').forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+</script>
+
+</body>
+</html>
